@@ -15,7 +15,7 @@ class Qnet(nn.Module):
             use_c51=False, dueling_type=None, use_noisylayers=False,
             use_goal_attn=True, use_goal_cat=False,
             use_local=True, use_neighbor=True, use_global=True
-            ):
+    ):
         """
         Dueling - Type1:  embed1,2,3->V, A
                 - Type2:  embed1,2->A  3->V
@@ -29,10 +29,10 @@ class Qnet(nn.Module):
         self._dueling_type = dueling_type
         self._use_noisylayers = use_noisylayers
         self._num_atoms = num_atoms
-        self._max_num_leaves = max_num_leaves  
+        self._max_num_leaves = max_num_leaves
         self._E_dom = E_dom
         self._E_dom_dim = E_dom.E_dom_dim
-        self._E_ggnn = E_ggnn 
+        self._E_ggnn = E_ggnn
         self._max_num_goal_tokens = self._E_dom.max_num_goal_tokens
         self._use_goal_attn = use_goal_attn
         self._use_goal_cat = use_goal_cat
@@ -49,23 +49,24 @@ class Qnet(nn.Module):
         if dueling_type is not None:
             stream_dim = int(fc_dim/2)
             # stream_dim = fc_dim
-            print("Use Dueling type %d with each stream dim=%d"%(dueling_type, stream_dim))
+            print("Use Dueling type %d with each stream dim=%d" %
+                  (dueling_type, stream_dim))
             if dueling_type == 0:
                 self._body_net = DuelingBody0(
-                        max_num_leaves, self._E_dom_dim, stream_dim, use_noisylayers
-                        )
+                    max_num_leaves, self._E_dom_dim, stream_dim, use_noisylayers
+                )
             elif dueling_type == 1:
                 self._body_net = DuelingBody1(
-                        max_num_leaves, self._E_dom_dim, stream_dim, use_noisylayers
-                        )
+                    max_num_leaves, self._E_dom_dim, stream_dim, use_noisylayers
+                )
             if use_c51:
                 self._head_net = DuelingC51Head(
-                        max_num_leaves, stream_dim, use_noisylayers, num_atoms
-                        )
+                    max_num_leaves, stream_dim, use_noisylayers, num_atoms
+                )
             else:
                 self._head_net = DuelingHead(
-                        max_num_leaves, stream_dim, use_noisylayers
-                        )
+                    max_num_leaves, stream_dim, use_noisylayers
+                )
         else:
             if use_goal_attn:
                 if use_goal_cat:
@@ -73,7 +74,7 @@ class Qnet(nn.Module):
                     in_dom_global_dim = self._E_dom_dim*3 + self._E_dom_dim
                 else:
                     print("use goal_attn")
-                    in_dom_global_dim = self._E_dom_dim*3 
+                    in_dom_global_dim = self._E_dom_dim*3
             else:
                 if use_goal_cat:
                     print("use goal_cat")
@@ -84,19 +85,19 @@ class Qnet(nn.Module):
 
             token_in_dim = in_dom_global_dim + E_dom.text_dim + self._max_num_goal_tokens
             self._body_net = Body(
-                    in_dom_global_dim,
-                    max_num_leaves, self._max_num_goal_tokens,
-                    self._E_dom_dim, token_in_dim,
-                    h_dom_dim, use_noisylayers, use_local, use_neighbor, use_global 
-                    )
+                in_dom_global_dim,
+                max_num_leaves, self._max_num_goal_tokens,
+                self._E_dom_dim, token_in_dim,
+                h_dom_dim, use_noisylayers, use_local, use_neighbor, use_global
+            )
             if use_c51:
                 self._head_net = C51Head(
-                        max_num_leaves, fc_dim, use_noisylayers, num_atoms
-                        )
+                    max_num_leaves, fc_dim, use_noisylayers, num_atoms
+                )
             else:
                 self._head_net = Head(
-                        max_num_leaves, self._max_num_goal_tokens, h_dom_dim, use_noisylayers
-                        )
+                    max_num_leaves, self._max_num_goal_tokens, h_dom_dim, use_noisylayers
+                )
 
     def prep(self, x):
         # x from environment
@@ -109,19 +110,21 @@ class Qnet(nn.Module):
         prep_list2d = list(prep_list2d)
 
         V_size = len(prep_list2d[0])
-        A = create_undirected_adj_matrix(dom_vals, V_size) # [V, V]
+        A = create_undirected_adj_matrix(dom_vals, V_size)  # [V, V]
 
         is_leaves = dom_vals["is_leaf"]
         leaves_idxs = [i for i in range(len(is_leaves)) if is_leaves[i]]
         leaves_mask = [1.0 for _ in range(len(leaves_idxs))]
 
         max_num_leaves, num_leaves = self._max_num_leaves, len(leaves_mask)
-        assert max_num_leaves >= num_leaves  
+        assert max_num_leaves >= num_leaves
 
         pad_masked_idx = len(is_leaves) - 1
-        leaves_idxs = leaves_idxs + [pad_masked_idx for _ in range(max_num_leaves - num_leaves)] 
+        leaves_idxs = leaves_idxs + \
+            [pad_masked_idx for _ in range(max_num_leaves - num_leaves)]
         leaves_idxs = np.array(leaves_idxs)
-        leaves_idxs_mask = leaves_mask + [0.0 for _ in range(max_num_leaves - num_leaves)]
+        leaves_idxs_mask = leaves_mask + \
+            [0.0 for _ in range(max_num_leaves - num_leaves)]
         leaves_idxs_mask = np.array(leaves_idxs_mask, dtype=np.float32)
         #                         + [V, V], [max_num_leaves], [max_num_leaves]
         prep_list2d = prep_list2d + [A, leaves_idxs, leaves_idxs_mask]
@@ -129,24 +132,28 @@ class Qnet(nn.Module):
 
     def forward(self, X, log=False):
         # 1. top_tokens, tag_ids, text_ids, classes_ids, focus_encodes,
-        # tampered_encodes, 
+        # tampered_encodes,
         # 2. A, leaves_idxs, leaves_mask
         # 3. V_mask, goal_ids, goal_seq_lens, A, leaves_idxs, leaves_mask
-        embed_prep_list, (A, leaves_idxs, leaves_mask), embed_prep_list1d = X[:-7], X[-7:-4], X[-4:]
+        embed_prep_list, (A, leaves_idxs,
+                          leaves_mask), embed_prep_list1d = X[:-7], X[-7:-4], X[-4:]
         m = len(embed_prep_list[0])
-        leaves_E_idxs = leaves_idxs.unsqueeze(2).expand(-1, -1, self._E_dom_dim)
+        leaves_E_idxs = leaves_idxs.unsqueeze(
+            2).expand(-1, -1, self._E_dom_dim)
 
         # [m, d_h_goal], _, [m, max_num_goal_tokens], [m, V, E_dim], [m, V_size]<= 10+4 args
-        h_goal, embedded_goal_tokens, goal_mask, e_local, V_mask = self._E_dom(*embed_prep_list, *embed_prep_list1d)
+        h_goal, embedded_goal_tokens, goal_mask, e_local, V_mask = self._E_dom(
+            *embed_prep_list, *embed_prep_list1d)
         # [m, V_size, E_dom_dim] <= [m, V]
         V_E_mask = V_mask.unsqueeze(2).expand(-1, -1, self._E_dom_dim)
         V_size = len(e_local)
         # Message Passing: [m, V_size, E_dom] <= [m, V, E_dom]
         e_neighbor = self._E_ggnn(e_local, A, h_goal)
 
-        # [m, max_num_leaves, E_dom] <= [m, V, E_dom] 
-        e_local_leaves = e_local.gather(dim=1, index=leaves_E_idxs)
-        e_neighbor_leaves = e_neighbor.gather(dim=1, index=leaves_E_idxs)
+        # [m, max_num_leaves, E_dom] <= [m, V, E_dom]
+        e_local_leaves = e_local.gather(dim=1, index=leaves_E_idxs.long())
+        e_neighbor_leaves = e_neighbor.gather(
+            dim=1, index=leaves_E_idxs.long())
 
         # [m, E_dom] <= [m, max_num_leaves, E_dom]
         e_global_max_from_local = e_local.max(dim=1)[0]
@@ -155,40 +162,44 @@ class Qnet(nn.Module):
         if self._use_goal_attn:
             # [m, max_num_leaves, 2d]
             e_global_attn, attns = scaled_dot_attn(
-            h_goal.unsqueeze(1), e_local, e_neighbor, V_mask.unsqueeze(1)
-                )
+                h_goal.unsqueeze(1), e_local, e_neighbor, V_mask.unsqueeze(1)
+            )
             # [m, self._E_dom_dim], [m, V_size]
             e_global_attn, attns = e_global_attn.squeeze(1), attns.squeeze(1)
             if self._use_goal_cat:
                 e_global = torch.cat((
-                    e_global_max_from_local, e_global_max_from_neighbor, 
+                    e_global_max_from_local, e_global_max_from_neighbor,
                     e_global_attn,
-                    h_goal),dim=1)
+                    h_goal), dim=1)
             else:
                 e_global = torch.cat((
                     e_global_max_from_local, e_global_max_from_neighbor,
                     e_global_attn,
-                    ), dim=1)
+                ), dim=1)
         else:
             if self._use_goal_cat:
-                e_global = torch.cat((e_global_max_from_local, e_global_max_from_neighbor, h_goal),dim=1)
+                e_global = torch.cat(
+                    (e_global_max_from_local, e_global_max_from_neighbor, h_goal), dim=1)
             else:
-                e_global = torch.cat((e_global_max_from_local, e_global_max_from_neighbor), dim=1)
+                e_global = torch.cat(
+                    (e_global_max_from_local, e_global_max_from_neighbor), dim=1)
 
         # Goal G state
         # [m, max_num_goal(copied), d_h_goal(max_num_goal_tokens)]
         expanded_e_global = e_global.unsqueeze(1).expand(
-                -1, self._max_num_goal_tokens, -1)
+            -1, self._max_num_goal_tokens, -1)
         e_tokens = torch.cat((embedded_goal_tokens, expanded_e_global), dim=2)
 
         # Final representation for Q network
-        e_list = self._body_net(e_local_leaves, e_neighbor_leaves, e_global, e_tokens)
+        e_list = self._body_net(
+            e_local_leaves, e_neighbor_leaves, e_global, e_tokens)
         return self._head_net(e_list, leaves_mask, goal_mask, log)
 
     def get_attn_weights(self, X):
         tag_ids, text_ids, classes_ids, focus_encodes, V_mask, goal_ids, goal_seq_lens, A, leaves_idxs, leaves_mask = X
         # [m, V_size, x_dom_dim], []
-        X_dom, _ = self._E_dom(tag_ids, text_ids, classes_ids, focus_encodes, V_mask, goal_ids, goal_seq_lens)
+        X_dom, _ = self._E_dom(
+            tag_ids, text_ids, classes_ids, focus_encodes, V_mask, goal_ids, goal_seq_lens)
         # [m, V_size, V_size]
         tag_tokens = self._E_dom.rev_prep(tag_ids[0])
         return self._E_ggnn.get_attn_weights(X_dom, A), A, tag_tokens
@@ -196,7 +207,7 @@ class Qnet(nn.Module):
     def debug_h(self, x):
         return {}, {}
         raise NotImplementedError("needs update implem")
-        return {}, {"h":self._embed([x])[0].squeeze(0).cpu().detach().numpy()}
+        return {}, {"h": self._embed([x])[0].squeeze(0).cpu().detach().numpy()}
 
     @property
     def use_noisylayers(self):
@@ -212,7 +223,7 @@ class Qnet(nn.Module):
 # Body Modules
 ##
 #
-#class DuelingBody0(nn.Module):
+# class DuelingBody0(nn.Module):
 #    def __init__(self, max_num_leaves, in_dim, stream_dim, use_noisylayers):
 #        super(DuelingBody0, self).__init__()
 #        self._h_V_dim = in_dim * 4
@@ -250,7 +261,7 @@ class Qnet(nn.Module):
 #        return h_V, h_A
 #
 #
-#class DuelingBody1(nn.Module):
+# class DuelingBody1(nn.Module):
 #    def __init__(self, max_num_leaves, in_dim, stream_dim, use_noisylayers):
 #        super(DuelingBody1, self).__init__()
 #        #self._h_V_dim = in_dim
@@ -283,7 +294,7 @@ class Qnet(nn.Module):
 #        h_V = F.relu(self._V_fc2(h_V))
 #
 #        # [m, max_num_leaves 3*d]
-#        h_A = h_A.view(-1, self._h_A_dim) 
+#        h_A = h_A.view(-1, self._h_A_dim)
 #        h_A = F.relu(self._A_fc1(h_A))
 #        # [m * max_num_leaves, stream_dim]
 #        h_A = F.relu(self._A_fc2(h_A))
@@ -377,7 +388,7 @@ class Body(nn.Module):
         self._fc2_token.reset_noise()
 
 
-## 
+##
 # Output Head Modules
 ##
 
@@ -391,7 +402,8 @@ class Head(nn.Module):
         super(Head, self).__init__()
         self._max_num_leaves = max_num_leaves
         self._max_num_goal_tokens = max_num_goal_tokens
-        mode_stream_dim, token_stream_dim = int(dom_stream_dim/4), int(dom_stream_dim/2)
+        mode_stream_dim, token_stream_dim = int(
+            dom_stream_dim/4), int(dom_stream_dim/2)
         if use_noisylayers:
             self._out_dom = NoisyLinear(dom_stream_dim, 1)
             self._out_mode = NoisyLinear(mode_stream_dim, 2)
@@ -474,7 +486,8 @@ class DuelingHead(nn.Module):
         # [m, max_num_leaves]
         A = self._A_out(h_A).view(-1, self._max_num_leaves)
         # [m, max_num_leaves]
-        Q = V + A - ((A*leaves_mask).sum(1, keepdim=True) / leaves_mask.sum(1, keepdim=True))
+        Q = V + A - ((A*leaves_mask).sum(1, keepdim=True) /
+                     leaves_mask.sum(1, keepdim=True))
         inf_mask = leaves_mask.clone()
         inf_mask[leaves_mask == 0] = float('inf')
         inf_mask[leaves_mask == 1] = 0
@@ -503,11 +516,13 @@ class DuelingC51Head(nn.Module):
         # [m, 1, num_atoms]
         V = self._V_out(h_V).view(-1, 1, self._num_atoms)
         # [m, max_num_leaves, num_atoms]
-        leaves_mask_expanded = leaves_mask.unsqueeze(2).expand(-1, -1, self._num_atoms)
+        leaves_mask_expanded = leaves_mask.unsqueeze(
+            2).expand(-1, -1, self._num_atoms)
         # [m, max_num_leaves, num_atoms]
         A = self._A_out(h_A).view(-1, self._max_num_leaves, self._num_atoms)
         # [m, max_num_leaves, num_atoms]
-        Y = V + A - ((A*leaves_mask_expanded).sum(1, keepdim=True) / leaves_mask_expanded.sum(1, keepdim=True))
+        Y = V + A - ((A*leaves_mask_expanded).sum(1, keepdim=True) /
+                     leaves_mask_expanded.sum(1, keepdim=True))
         if log:
             P = F.log_softmax(Y, dim=2)
         else:
@@ -517,12 +532,3 @@ class DuelingC51Head(nn.Module):
     def reset_noise(self):
         self._V_out.reset_noise()
         self._A_out.reset_noise()
-
-
-
-
-
-
-
-
-

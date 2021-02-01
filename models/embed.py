@@ -13,9 +13,9 @@ class Embedding(nn.Module):
 
     def get_status(self):
         status = {
-                "E": self._E.weight,
-                "V": str(self._V)
-                }
+            "E": self._E.weight,
+            "V": str(self._V)
+        }
         return status
 
     def prep(self, x, max_num_1d_tokens, oov2randidx_dict=None):
@@ -30,14 +30,14 @@ class Embedding(nn.Module):
         tokens = [x]
         if oov2randidx_dict is None:
             token_ids, mask_1d = batch_pad_lookup_(
-                    tokens, self._V, max_num_1d_tokens
-                    )
+                tokens, self._V, max_num_1d_tokens
+            )
             return token_ids.squeeze(0), num_1d_tokens, mask_1d.squeeze(0)
         else:
             # [1, max_num_1d_tokens], [1, s], [1, s], [1, s]
             token_ids, mask_1d, oov_mask, oov_ids = batch_pad_oov_lookup_(
-                    tokens, self._V, oov2randidx_dict, max_num_1d_tokens
-                    )
+                tokens, self._V, oov2randidx_dict, max_num_1d_tokens
+            )
             # [max_num_1d_tokens], 1, [max_num_1d_tokens], [max_num_1d_tokens]
             return token_ids.squeeze(0), num_1d_tokens, mask_1d.squeeze(0), oov_mask.squeeze(0), oov_ids.squeeze(0)
 
@@ -45,7 +45,10 @@ class Embedding(nn.Module):
         """
         [m, max_num_1d_tokens]
         -> [m, max_num_1d_tokens, d]
-        """ 
+        """
+        # print("**** X: ", X)
+        X = X.type(torch.LongTensor)
+        # print("**** LX: ", X)
         return self._E(X)
 
     def rev_prep(self, x):
@@ -93,9 +96,9 @@ class Embedding2D(nn.Module):
 
     def get_status(self):
         status = {
-                "E": self._E.weight,
-                "V": str(self._Vchar)
-                }
+            "E": self._E.weight,
+            "V": str(self._Vchar)
+        }
         return status
 
     def prep(self, X, max_num_1d_tokens, max_num_2d_tokens):
@@ -168,7 +171,7 @@ def batch_pad_(batch_tokens, pad_token, max_num_tokens=None):
             submask[len(sub_tokens):max_num_tokens] = 0.
             sub_tokens.extend([pad_token]*(max_num_tokens - len(sub_tokens)))
         elif len(sub_tokens) > max_num_tokens:
-            while len(sub_tokens)!=max_num_tokens:
+            while len(sub_tokens) != max_num_tokens:
                 sub_tokens.pop()
     return mask
 
@@ -218,7 +221,7 @@ def batch_pad_oov_lookup_(batch_tokens, vocab, oov2randidx_dict=None, max_num_to
                 # not out of vocab
                 oov_mask[-1].append(0)
             else:
-                # OOV 
+                # OOV
                 oov_mask[-1].append(1)
                 if x not in oov2randidx_dict:
                     num_oov_items = len(oov2randidx_dict)
@@ -230,6 +233,3 @@ def batch_pad_oov_lookup_(batch_tokens, vocab, oov2randidx_dict=None, max_num_to
     oov_mask = np.array(oov_mask)
     oov_ids = np.array(oov_idxs, dtype=np.int64)
     return batch_ids, mask, oov_mask, oov_ids
-
-
-

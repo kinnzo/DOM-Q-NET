@@ -17,20 +17,22 @@ NUM_CONSECUTIVE = 10
 def main(res_dir, settings, hparams_list, paths_list, prints_dict):
     paths = paths_list[0]
     buffer_device = torch.device(settings.get("buffer_device", "cuda:0"))
+    # buffer_device = torch.device('cpu:0')
     device = torch.device(settings.get("batch_device", "cuda:0"))
+    # device = torch.device('cpu:0')
     saved_path = paths["saved_path"]
-    ckpt = torch.load(saved_path)
+    ckpt = torch.load(saved_path, map_location=torch.device('cpu'))
     nn_hs, qlearn_hs, replay_hs, other_hs = ckpt["hparams_list"]
     V_tag, V_text, V_class = ckpt["V_tag"], ckpt["V_text"], ckpt["V_class"]
 
     build_net_f, save_dict, common_track_f = create_build_f(
-            nn_hs, qlearn_hs, other_hs, prints_dict, None, V_text, V_tag, V_class
-            )
+        nn_hs, qlearn_hs, other_hs, prints_dict, None, V_text, V_tag, V_class
+    )
     q_net, net_track_f = build_net_f(buffer_device, device)
     q_net.load_state_dict(ckpt["net"])
     q_net.eval()
 
-    # Configure env f 
+    # Configure env f
     env_f = create_env_f(nn_hs, qlearn_hs, other_hs, settings)
     q = input("START")
     i = 0
@@ -42,11 +44,11 @@ def main(res_dir, settings, hparams_list, paths_list, prints_dict):
         rewards = []
         for env_f in env_fs:
             actor = dqn_actor.Actor(
-                    env_f, None, q_net,
-                    None, None, None,
-                    qlearn_hs["max_step_per_epi"], None, None, buffer_device, device
-                    )
-            actors.append(actor) 
+                env_f, None, q_net,
+                None, None, None,
+                qlearn_hs["max_step_per_epi"], None, None, buffer_device, device
+            )
+            actors.append(actor)
             done_actors.append(False)
             rewards.append(None)
         num_actors = len(actors)
@@ -71,7 +73,8 @@ def main(res_dir, settings, hparams_list, paths_list, prints_dict):
                         rewards[i] = None
                     time.sleep(2.0)
                 else:
-                    q = input("Reward=%s, Press any (q quit) to continue..."%reward_str)
+                    q = input(
+                        "Reward=%s, Press any (q quit) to continue..." % reward_str)
                     if q == "q":
                         break
                     else:
@@ -80,14 +83,14 @@ def main(res_dir, settings, hparams_list, paths_list, prints_dict):
                             done_actors[i] = False
                             rewards[i] = None
                         time.sleep(2.0)
-                i+=1
+                i += 1
 
     else:
         actor = dqn_actor.Actor(
-                env_f, None, q_net,
-                None, None, None,
-                qlearn_hs["max_step_per_epi"], None, None, device
-                )
+            env_f, None, q_net,
+            None, None, None,
+            qlearn_hs["max_step_per_epi"], None, None, device
+        )
         q = input("START")
         while True:
             reward, done = actor.just_act()
@@ -96,11 +99,8 @@ def main(res_dir, settings, hparams_list, paths_list, prints_dict):
                 actor.reset()
                 time.sleep(2.0)
                 #q = input("Reward=%d, Press any (q quit) to continue..."%int(reward))
-                #if q == "q":
+                # if q == "q":
                 #    break
-                #else:
+                # else:
                 #    actor.reset()
                 #    time.sleep(2.0)
-
-
-

@@ -1,8 +1,10 @@
 {
-    "env": ["social-media", "search-engine", "navigate-tree", "click-tab-2",
-            "login-user", "enter-text", "enter-password", "email-inbox-delete",
-            "click-option", "click-checkboxes", "enter-text-dynamic"
-            ],
+    "env": [
+        "login-user-var",
+        "login-user-custom",
+        "click-tab-2-custom",
+        "search-engine-custom"
+    ],
     "T_ckpt": 5000,
     "save_ckpt": true,
     "io_T": 50,
@@ -11,6 +13,6 @@
     "multi_env": true,
     "T_replay_track": 200,
     "buffer_device": "cpu:0",
-    "batch_device": "cuda:0",
+    "batch_device": "cpu:0",
     "err_T_track": 100
 }

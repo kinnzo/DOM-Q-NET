@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.chrome.options import Options
-
+from webdriver_manager.chrome import ChromeDriverManager
 
 import PIL
 
@@ -32,7 +32,7 @@ class MiniWoBInstance:
             self, task_file,
             base_url=os.getenv("WOB_PATH"),
             wait_ms=0., block_on_reset=True, refresh_freq=0
-            ):
+    ):
         """
         E.g. base_url='file:///h/sheng/DOM-Q-NET/miniwob/html/miniwob/',
         Args:
@@ -47,18 +47,20 @@ class MiniWoBInstance:
 
         #url = base_url + task_file
         #options = webdriver.FirefoxOptions()
-        #options.set_headless()
-        #options.add_argument('-safe-mode')
+        # options.set_headless()
+        # options.add_argument('-safe-mode')
         #self._driver = webdriver.Firefox(options=options)
-        #self._driver.get(url)
+        # self._driver.get(url)
         # print("Firefox Task title: " + self._driver.title)
 
-        #NOTE Chrome driver
+        # NOTE Chrome driver
         url = base_url + task_file
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
         self._url = url
-        self._driver = webdriver.Chrome(chrome_options=chrome_options)
+        self._driver = webdriver.Chrome(
+            ChromeDriverManager().install(), chrome_options=chrome_options)
         self._driver.get(url)
         print("Chrome Task title: " + self._driver.title)
 
@@ -82,37 +84,38 @@ class MiniWoBInstance:
     @property
     def is_done(self):
         return self._driver.execute_script(
-                'return {'
-                '"done": WOB_DONE_GLOBAL,'
-                '};')
+            'return {'
+            '"done": WOB_DONE_GLOBAL,'
+            '};')
 
     @property
     def img(self):
         png_data = self._driver.get_screenshot_as_png()
         pil_img = PIL.Image.open(png_data)
         pil_img = pil_img.crop(
-                (0, 0, self.TASK_WIDTH, self.TASK_HEIGHT)
-                ).convert('RGB')
+            (0, 0, self.TASK_WIDTH, self.TASK_HEIGHT)
+        ).convert('RGB')
         return pil_img
 
     @property
     def metadata(self):
         return self._driver.execute_script(
-                'return {'
-                '"done": WOB_DONE_GLOBAL,'
-                '"env_reward": WOB_REWARD_GLOBAL,'
-                '"raw_reward": WOB_RAW_REWARD_GLOBAL,'
-                '"info": WOB_REWARD_REASON,'
-                '};')
+            'return {'
+            '"done": WOB_DONE_GLOBAL,'
+            '"env_reward": WOB_REWARD_GLOBAL,'
+            '"raw_reward": WOB_RAW_REWARD_GLOBAL,'
+            '"info": WOB_REWARD_REASON,'
+            '};')
 
     def begin_task(self, seed=None):
         """
         args:
             seed: e.g. 'hello', 'itsme',
         """
-        seed=None
+        seed = None
         if seed is not None:
-            self._driver.execute_script('Math.seedrandom({});'.format(repr(seed)))
+            self._driver.execute_script(
+                'Math.seedrandom({});'.format(repr(seed)))
         # print(self._driver.execute_script('return WOB_TASK_READY;') )
         self._driver.execute_script('core.startEpisodeReal();')
 
@@ -120,7 +123,8 @@ class MiniWoBInstance:
         self._driver.execute_script('return core.endEpisode(0);')
 
     def terminate(self):
-        self._driver.execute_script('return core.endEpisode(-1, false, "terminate");')
+        self._driver.execute_script(
+            'return core.endEpisode(-1, false, "terminate");')
 
     def coord_click(self, left, top):
         body = self._driver.find_element_by_tag_name('body')
@@ -129,15 +133,15 @@ class MiniWoBInstance:
 
     def dom_click(self, ref, fail_hard=False):
         result = self._driver.execute_script(
-                'return core.elementClick({});'.format(ref)
-                )
+            'return core.elementClick({});'.format(ref)
+        )
         if not result:
             if fail_hard:
                 raise RuntimeError()
             else:
                 pass
 
-    def type(self, text): 
+    def type(self, text):
         # TODO WHY WOULD CLICK PAD TOKEN????
         chain = ActionChains(self._driver)
         chain.send_keys(text)
@@ -153,3 +157,7 @@ class MiniWoBInstance:
 if __name__ == '__main__':
     pass
 
+
+# chrome_options.add_argument("--debuggerAddress=0.0.0.0:9989")
+# chrome_options.add_experimental_option("debuggerAddress","localhost:9989")
+# chrome_options.add_argument("--remote-debugging-port=9989")
